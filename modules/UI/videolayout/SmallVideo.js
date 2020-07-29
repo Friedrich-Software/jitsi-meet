@@ -1,15 +1,16 @@
 /* global $, APP, config, interfaceConfig */
 
 /* eslint-disable no-unused-vars */
+import { AtlasKitThemeProvider } from '@atlaskit/theme';
+import Logger from 'jitsi-meet-logger';
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { I18nextProvider } from 'react-i18next';
-import { AtlasKitThemeProvider } from '@atlaskit/theme';
 import { Provider } from 'react-redux';
 
-import { i18next } from '../../../react/features/base/i18n';
 import { AudioLevelIndicator } from '../../../react/features/audio-level-indicator';
 import { Avatar as AvatarDisplay } from '../../../react/features/base/avatar';
+import { i18next } from '../../../react/features/base/i18n';
 import {
     getParticipantCount,
     getPinnedParticipant,
@@ -30,7 +31,7 @@ import {
 } from '../../../react/features/video-layout';
 /* eslint-enable no-unused-vars */
 
-const logger = require('jitsi-meet-logger').getLogger(__filename);
+const logger = Logger.getLogger(__filename);
 
 /**
  * Display mode constant used when video is being displayed on the small video.
@@ -450,7 +451,7 @@ export default class SmallVideo {
      */
     selectDisplayMode(input) {
         // Display name is always and only displayed when user is on the stage
-        if (input.isCurrentlyOnLargeVideo && !input.tileViewEnabled) {
+        if (input.isCurrentlyOnLargeVideo && !input.tileViewActive) {
             return input.isVideoPlayable && !input.isAudioOnly ? DISPLAY_BLACKNESS_WITH_NAME : DISPLAY_AVATAR_WITH_NAME;
         } else if (input.isVideoPlayable && input.hasVideo && !input.isAudioOnly) {
             // check hovering and change state to video with name
@@ -471,7 +472,7 @@ export default class SmallVideo {
             isCurrentlyOnLargeVideo: this.isCurrentlyOnLargeVideo(),
             isHovered: this._isHovered(),
             isAudioOnly: APP.conference.isAudioOnly(),
-            tileViewEnabled: shouldDisplayTileView(APP.store.getState()),
+            tileViewActive: shouldDisplayTileView(APP.store.getState()),
             isVideoPlayable: this.isVideoPlayable(),
             hasVideo: Boolean(this.selectVideoElement().length),
             connectionStatus: APP.conference.getParticipantConnectionStatus(this.id),
