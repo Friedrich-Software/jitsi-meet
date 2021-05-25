@@ -6,8 +6,8 @@ import { PIP_ENABLED, getFeatureFlag } from '../../../base/flags';
 import { translate } from '../../../base/i18n';
 import { IconMenuDown } from '../../../base/icons';
 import { connect } from '../../../base/redux';
-import { AbstractButton } from '../../../base/toolbox';
-import type { AbstractButtonProps } from '../../../base/toolbox';
+import { AbstractButton, type AbstractButtonProps } from '../../../base/toolbox/components';
+import { isLocalVideoTrackDesktop } from '../../../base/tracks/functions';
 import { enterPictureInPicture } from '../actions';
 
 type Props = AbstractButtonProps & {
@@ -64,7 +64,7 @@ class PictureInPictureButton extends AbstractButton<Props, *> {
  */
 function _mapStateToProps(state): Object {
     const flag = Boolean(getFeatureFlag(state, PIP_ENABLED));
-    let enabled = flag;
+    let enabled = flag && !isLocalVideoTrackDesktop(state);
 
     // Override flag for Android, since it might be unsupported.
     if (Platform.OS === 'android' && !NativeModules.PictureInPicture.SUPPORTED) {

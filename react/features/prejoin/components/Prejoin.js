@@ -4,13 +4,15 @@ import InlineDialog from '@atlaskit/inline-dialog';
 import React, { Component } from 'react';
 
 import { getRoomName } from '../../base/conference';
+import { getToolbarButtons } from '../../base/config';
 import { translate } from '../../base/i18n';
-import { Icon, IconPhone, IconVolumeOff } from '../../base/icons';
+import { Icon, IconArrowDown, IconArrowUp, IconPhone, IconVolumeOff } from '../../base/icons';
 import { isVideoMutedByUser } from '../../base/media';
 import { ActionButton, InputField, PreMeetingScreen, ToggleButton } from '../../base/premeeting';
 import { connect } from '../../base/redux';
 import { getDisplayName, updateSettings } from '../../base/settings';
 import { getLocalJitsiVideoTrack } from '../../base/tracks';
+import { isButtonEnabled } from '../../toolbox/functions.web';
 import {
     joinConference as joinConferenceAction,
     joinConferenceWithoutAudio as joinConferenceWithoutAudioAction,
@@ -28,6 +30,8 @@ import {
 import JoinByPhoneDialog from './dialogs/JoinByPhoneDialog';
 import DeviceStatus from './preview/DeviceStatus';
 
+declare var interfaceConfig: Object;
+
 type Props = {
 
     /**
@@ -44,11 +48,6 @@ type Props = {
      * If join by phone button should be visible.
      */
     hasJoinByPhoneButton: boolean,
-
-    /**
-     * If join button is disabled or not.
-     */
-    joinButtonDisabled: boolean,
 
     /**
      * Joins the current meeting.
@@ -96,9 +95,19 @@ type Props = {
     showCameraPreview: boolean,
 
     /**
+     * If should show an error when joining without a name.
+     */
+    showErrorOnJoin: boolean,
+
+    /**
      * Flag signaling the visibility of join label, input and buttons
      */
     showJoinActions: boolean,
+
+    /**
+     * Flag signaling the visibility of the conference URL section.
+     */
+    showConferenceInfo: boolean,
 
     /**
      * If 'JoinByPhoneDialog' is visible or not.
@@ -119,9 +128,19 @@ type Props = {
      * The JitsiLocalTrack to display.
      */
     videoTrack: ?Object,
+
+    /**
+     * Array with the buttons which this Toolbox should display.
+     */
+    visibleButtons: Array<string>
 };
 
 type State = {
+
+    /**
+     * Flag controlling the visibility of the error label.
+     */
+    showError: boolean,
 
     /**
      * Flag controlling the visibility of the 'join by phone' buttons.
@@ -139,6 +158,7 @@ class Prejoin extends Component<Props, State> {
      * @static
      */
     static defaultProps = {
+        showConferenceInfo: true,
         showJoinActions: true,
         showSkipPrejoin: true
     };
@@ -152,15 +172,37 @@ class Prejoin extends Component<Props, State> {
         super(props);
 
         this.state = {
+            showError: false,
             showJoinByPhoneButtons: false
         };
 
         this._closeDialog = this._closeDialog.bind(this);
         this._showDialog = this._showDialog.bind(this);
+        this._onJoinButtonClick = this._onJoinButtonClick.bind(this);
         this._onToggleButtonClick = this._onToggleButtonClick.bind(this);
         this._onDropdownClose = this._onDropdownClose.bind(this);
         this._onOptionsClick = this._onOptionsClick.bind(this);
         this._setName = this._setName.bind(this);
+    }
+    _onJoinButtonClick: () => void;
+
+    /**
+     * Handler for the join button.
+     *
+     * @param {Object} e - The synthetic event.
+     * @returns {void}
+     */
+    _onJoinButtonClick() {
+        if (this.props.showErrorOnJoin) {
+            this.setState({
+                showError: true
+            });
+
+            return;
+        }
+
+        this.setState({ showError: false });
+        this.props.joinConference();
     }
 
     _onToggleButtonClick: () => void;
@@ -249,7 +291,6 @@ class Prejoin extends Component<Props, State> {
      */
     render() {
         const {
-            joinButtonDisabled,
             hasJoinByPhoneButton,
             joinConference,
             joinConferenceWithoutAudio,
@@ -257,38 +298,49 @@ class Prejoin extends Component<Props, State> {
             showAvatar,
             showCameraPreview,
             showDialog,
+            showConferenceInfo,
             showJoinActions,
             t,
-            videoTrack
+            videoTrack,
+            visibleButtons
         } = this.props;
 
-        const { _closeDialog, _onDropdownClose, _onOptionsClick, _setName, _showDialog } = this;
-        const { showJoinByPhoneButtons } = this.state;
+        const { _closeDialog, _onDropdownClose, _onJoinButtonClick, _onOptionsClick, _setName, _showDialog } = this;
+        const { showJoinByPhoneButtons, showError } = this.state;
 
         return (
             <PreMeetingScreen
                 footer = { this._renderFooter() }
                 name = { name }
                 showAvatar = { showAvatar }
-                showConferenceInfo = { showJoinActions }
+                showConferenceInfo = { showConferenceInfo }
                 skipPrejoinButton = { this._renderSkipPrejoinButton() }
                 title = { t('prejoin.joinMeeting') }
                 videoMuted = { !showCameraPreview }
-                videoTrack = { videoTrack }>
+                videoTrack = { videoTrack }
+                visibleButtons = { visibleButtons }>
                 {showJoinActions && (
                     <div className = 'prejoin-input-area-container'>
                         <div className = 'prejoin-input-area'>
                             <InputField
+                                autoFocus = { true }
+                                className = { showError ? 'error' : '' }
+                                hasError = { showError }
                                 onChange = { _setName }
                                 onSubmit = { joinConference }
                                 placeHolder = { t('dialog.enterDisplayName') }
                                 value = { name } />
+
+                            {showError && <div
+                                className = 'prejoin-error'
+                                data-testid = 'prejoin.errorMessage'>{t('prejoin.errorMissingName')}</div>}
 
                             <div className = 'prejoin-preview-dropdown-container'>
                                 <InlineDialog
                                     content = { <div className = 'prejoin-preview-dropdown-btns'>
                                         <div
                                             className = 'prejoin-preview-dropdown-btn'
+                                            data-testid = 'prejoin.joinWithoutAudio'
                                             onClick = { joinConferenceWithoutAudio }>
                                             <Icon
                                                 className = 'prejoin-preview-dropdown-icon'
@@ -301,6 +353,7 @@ class Prejoin extends Component<Props, State> {
                                             onClick = { _showDialog }>
                                             <Icon
                                                 className = 'prejoin-preview-dropdown-icon'
+                                                data-testid = 'prejoin.joinByPhone'
                                                 size = { 24 }
                                                 src = { IconPhone } />
                                             { t('prejoin.joinAudioByPhone') }
@@ -309,9 +362,9 @@ class Prejoin extends Component<Props, State> {
                                     isOpen = { showJoinByPhoneButtons }
                                     onClose = { _onDropdownClose }>
                                     <ActionButton
-                                        disabled = { joinButtonDisabled }
+                                        OptionsIcon = { showJoinByPhoneButtons ? IconArrowUp : IconArrowDown }
                                         hasOptions = { true }
-                                        onClick = { joinConference }
+                                        onClick = { _onJoinButtonClick }
                                         onOptionsClick = { _onOptionsClick }
                                         testId = 'prejoin.joinMeeting'
                                         type = 'primary'>
@@ -368,22 +421,35 @@ class Prejoin extends Component<Props, State> {
  * Maps (parts of) the redux state to the React {@code Component} props.
  *
  * @param {Object} state - The redux state.
+ * @param {Object} ownProps - The props passed to the component.
  * @returns {Object}
  */
-function mapStateToProps(state): Object {
+function mapStateToProps(state, ownProps): Object {
     const name = getDisplayName(state);
-    const joinButtonDisabled = isDisplayNameRequired(state) && !name;
+    const showErrorOnJoin = isDisplayNameRequired(state) && !name;
+    const { showJoinActions } = ownProps;
+    const isInviteButtonEnabled = isButtonEnabled('invite', state);
+
+    // Hide conference info when interfaceConfig is available and the invite button is disabled.
+    // In all other cases we want to preserve the behaviour and control the the conference info
+    // visibility through showJoinActions.
+    const showConferenceInfo
+        = typeof isInviteButtonEnabled === 'undefined' || isInviteButtonEnabled === true
+            ? showJoinActions
+            : false;
 
     return {
         buttonIsToggled: isPrejoinSkipped(state),
-        joinButtonDisabled,
         name,
         deviceStatusVisible: isDeviceStatusVisible(state),
         roomName: getRoomName(state),
         showDialog: isJoinByPhoneDialogVisible(state),
+        showErrorOnJoin,
         hasJoinByPhoneButton: isJoinByPhoneButtonVisible(state),
         showCameraPreview: !isVideoMutedByUser(state),
-        videoTrack: getLocalJitsiVideoTrack(state)
+        showConferenceInfo,
+        videoTrack: getLocalJitsiVideoTrack(state),
+        visibleButtons: getToolbarButtons(state)
     };
 }
 

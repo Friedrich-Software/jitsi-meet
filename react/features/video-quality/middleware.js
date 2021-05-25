@@ -1,16 +1,13 @@
 // @flow
 
-import {
-    CONFERENCE_JOINED,
-    VIDEO_QUALITY_LEVELS,
-    getNearestReceiverVideoQualityLevel,
-    setMaxReceiverVideoQuality,
-    setPreferredVideoQuality
-} from '../base/conference';
-import { MiddlewareRegistry, StateListenerRegistry } from '../base/redux';
-import { shouldDisplayTileView } from '../video-layout';
+import { CONFERENCE_JOINED } from '../base/conference';
+import { SET_CONFIG } from '../base/config';
+import { MiddlewareRegistry } from '../base/redux';
 
+import { setPreferredVideoQuality } from './actions';
 import logger from './logger';
+
+import './subscriber';
 
 /**
  * Implements the middleware of the feature video-quality.
@@ -33,39 +30,18 @@ MiddlewareRegistry.register(({ dispatch, getState }) => next => action => {
         }
         break;
     }
+    case SET_CONFIG: {
+        const state = getState();
+        const { videoQuality = {} } = state['features/base/config'];
+        const { persistedPrefferedVideoQuality } = state['features/video-quality-persistent-storage'];
+
+        if (videoQuality.persist && typeof persistedPrefferedVideoQuality !== 'undefined') {
+            dispatch(setPreferredVideoQuality(persistedPrefferedVideoQuality));
+        }
+
+        break;
+    }
     }
 
     return result;
 });
-
-/**
- * Implements a state listener in order to calculate max receiver video quality.
- */
-StateListenerRegistry.register(
-    /* selector */ state => {
-        const { reducedUI } = state['features/base/responsive-ui'];
-        const _shouldDisplayTileView = shouldDisplayTileView(state);
-        const thumbnailSize = state['features/filmstrip']?.tileViewDimensions?.thumbnailSize;
-
-        return {
-            displayTileView: _shouldDisplayTileView,
-            reducedUI,
-            thumbnailHeight: thumbnailSize?.height
-        };
-    },
-    /* listener */ ({ displayTileView, reducedUI, thumbnailHeight }, { dispatch, getState }) => {
-        const { maxReceiverVideoQuality } = getState()['features/base/conference'];
-        let newMaxRecvVideoQuality = VIDEO_QUALITY_LEVELS.HIGH;
-
-        if (reducedUI) {
-            newMaxRecvVideoQuality = VIDEO_QUALITY_LEVELS.LOW;
-        } else if (displayTileView && !Number.isNaN(thumbnailHeight)) {
-            newMaxRecvVideoQuality = getNearestReceiverVideoQualityLevel(thumbnailHeight);
-        }
-
-        if (maxReceiverVideoQuality !== newMaxRecvVideoQuality) {
-            dispatch(setMaxReceiverVideoQuality(newMaxRecvVideoQuality));
-        }
-    }, {
-        deepEquals: true
-    });
